@@ -1,4 +1,9 @@
 #include <cmath>
+#include <fstream>
+#include <iostream>
+#include <sstream>
+#include <string>
+
 #include "tgaimage.h"
 
 constexpr TGAColor white   = {255, 255, 255, 255}; // attention, BGRA order
@@ -7,25 +12,82 @@ constexpr TGAColor red     = {  0,   0, 255, 255};
 constexpr TGAColor blue    = {255, 128,  64, 255};
 constexpr TGAColor yellow  = {  0, 200, 255, 255};
 
+struct Vertex {
+    int index;
+
+    float x;
+    float y;
+    float z;
+};
+
+struct Triangle {
+    Vertex p1;
+    Vertex p2;
+    Vertex p3;
+};
+
 void line(int ax, int ay, int bx, int by, TGAImage &framebuffer, TGAColor color);
+std::tuple<int, int> project_vert(Vertex vert, int width, int height);
 
 int main(int argc, char** argv) {
-    constexpr int width  = 64;
-    constexpr int height = 64;
+    constexpr int width  = 800;
+    constexpr int height = 800;
     TGAImage framebuffer(width, height, TGAImage::RGB);
 
     int ax =  7, ay =  3;
     int bx = 12, by = 37;
     int cx = 62, cy = 53;
 
-    line(ax, ay, bx, by, framebuffer, blue);
-    line(cx, cy, bx, by, framebuffer, green);
-    line(cx, cy, ax, ay, framebuffer, yellow);
-    line(ax, ay, cx, cy, framebuffer, red);
+    std::ifstream file("./obj/diablo3_pose/diablo3_pose.obj");
 
-    framebuffer.set(ax, ay, white);
-    framebuffer.set(bx, by, white);
-    framebuffer.set(cx, cy, white);
+    std::vector<Vertex> vertices;
+    std::vector<Triangle> triangles;
+
+    if (file.is_open()) {
+        std::string line;
+        while (std::getline(file, line)) {
+            std::istringstream lstream(line);
+            std::string _;
+
+            if (line.starts_with("v ")) {
+                Vertex vert;
+                
+                lstream >> _ >> vert.x >> vert.y >> vert.z;
+                vertices.push_back(vert);
+            }
+
+            if (line.starts_with("f ")) {
+                Triangle tri;
+                
+                std::string v1, v2, v3;
+                lstream >> _ >> v1 >> v2 >> v3;
+
+                auto parse_index = [](const std::string& s) {
+                    return std::stoi(s.substr(0, s.find('/')));
+                };
+
+                int p1ind = parse_index(v1);
+                int p2ind = parse_index(v2);
+                int p3ind = parse_index(v3);
+
+                tri.p1 = vertices[p1ind - 1];
+                tri.p2 = vertices[p2ind - 1];
+                tri.p3 = vertices[p3ind - 1];
+                
+                triangles.push_back(tri);
+            }
+        }
+    }
+
+    for (Triangle const triangle : triangles) {
+        auto [t1x, t1y] = project_vert(triangle.p1, width, height);
+        auto [t2x, t2y] = project_vert(triangle.p2, width, height);
+        auto [t3x, t3y] = project_vert(triangle.p3, width, height);
+
+        line(t1x, t1y, t2x, t2y, framebuffer, red);
+        line(t1x, t1y, t3x, t3y, framebuffer, red);
+        line(t3x, t3y, t2x, t2y, framebuffer, red);
+    }
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
     return 0;
@@ -58,4 +120,10 @@ void line(int ax, int ay, int bx, int by, TGAImage &framebuffer, TGAColor color)
         y += (by > ay ? 1 : -1) * (ierror > bx - ax);
         ierror -= 2 * (bx - ax) * (ierror > bx - ax);
     }
+}
+
+std::tuple<int, int> project_vert(Vertex vert, int width, int height) {
+    int x = static_cast<int>((vert.x + 1.0)* width  / 2.0);
+    int y = static_cast<int>((vert.y + 1.0)* height / 2.0);
+    return {x, y};
 }
