@@ -28,8 +28,8 @@ struct Triangle3D {
 };
 
 void line(int ax, int ay, int bx, int by, TGAImage &framebuffer, TGAColor color);
-void triangle(int ax, int ay, int bx, int by, int cx, int cy, TGAImage &framebuffer, TGAColor color);
-bool inside_triangle(int px, int py, int ax, int ay, int bx, int by, int cx, int cy);
+void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, TGAImage &framebuffer);
+float tri_area(int ax, int ay, int bx, int by, int cx, int cy);
 std::tuple<int, int> project_vert(Vertex3D vert, int width, int height);
 void render_view(std::ifstream &file, TGAImage &framebuffer, int width, int height);
 
@@ -38,48 +38,53 @@ int main(int argc, char** argv) {
     constexpr int height = 800;
 
     TGAImage framebuffer(width, height, TGAImage::RGB);
-    std::ifstream file("./obj/diablo3_pose/diablo3_pose.obj");
-    render_view(file, framebuffer, width, height);
+    // std::ifstream file("./obj/diablo3_pose/diablo3_pose.obj");
+    // render_view(file, framebuffer, width, height);
 
-    // draw_triangle(  7, 45, 35, 100, 45,  60, framebuffer, red);
-    // draw_triangle(120, 35, 90,   5, 45, 110, framebuffer, white);
-    // draw_triangle(115, 83, 80,  90, 85, 120, framebuffer, green);
+    int ax = 17, ay =  4, az =  13;
+    int bx = 55, by = 39, bz = 128;
+    int cx = 23, cy = 59, cz = 255;
+
+    draw_triangle(ax, ay, az, bx, by, bz, cx, cy, cz, framebuffer);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
     return 0;
 }
 
-bool inside_triangle(int px, int py, int ax, int ay, int bx, int by, int cx, int cy) {
-    float denom = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
-    if (denom == 0)
-        return false;
-    
-    float w1 = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / denom;
-    float w2 = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / denom;
-    float w3 = 1 - w1 - w2;
-
-    bool inside = w1 >= 0 && w2 >= 0 && w3 >= 0;
-
-    return inside;
+float tri_area(int ax, int ay, int bx, int by, int cx, int cy) {
+    return (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) / 2;
 }
 
-void draw_triangle(int ax, int ay, int bx, int by, int cx, int cy, TGAImage &framebuffer, TGAColor color) {
-    float area = (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) / 2;
-    
+void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx, int cy, int cz, TGAImage &framebuffer) {
+    float area = tri_area(ax, ay, bx, by, cx, cy);
+
     if (area <= 0)
         return;
+    
+    int bbminx = std::min(std::min(ax, bx), cx);
+    int bbminy = std::min(std::min(ay, by), cy);
+    int bbmaxx = std::max(std::max(ax, bx), cx);
+    int bbmaxy = std::max(std::max(ay, by), cy);
 
     # pragma omp parallel for
     for (int px = 0; px < framebuffer.width(); ++px) {
         for (int py = 0; py < framebuffer.height(); ++py) {
-            if (inside_triangle(px, py, ax, ay, bx, by, cx, cy))
-                framebuffer.set(px, py, color);
+            double a = tri_area(px, py, bx, by, cx, cy) / area;
+            double b = tri_area(px, py, cx, cy, ax, ay) / area;
+            double g = tri_area(px, py, ax, ay, bx, by) / area;
+
+            if (a < 0 || b < 0 || g < 0) continue;
+            
+            TGAColor z = {
+                std::round(a * float(az) + b * float(bz) + g * float(cz)), 
+                std::round(b * float(az) + g * float(bz) + a * float(cz)), 
+                std::round(g * float(az) + a * float(bz) + b * float(cz)), 
+                1
+            };
+            
+            framebuffer.set(px, py, z);
         }
     }
-
-    line(ax, ay, bx, by, framebuffer, color);
-    line(bx, by, cx, cy, framebuffer, color);
-    line(cx, cy, ax, ay, framebuffer, color);
 }
 
 void line(int ax, int ay, int bx, int by, TGAImage &framebuffer, TGAColor color) {
@@ -170,6 +175,6 @@ void render_view(std::ifstream &file, TGAImage &framebuffer, int width, int heig
         TGAColor rnd;
         for (int c=0; c<3; c++) rnd[c] = std::rand() % 255;
 
-        draw_triangle(t1x, t1y, t2x, t2y, t3x, t3y, framebuffer, rnd);
+        // draw_triangle(t1x, t1y, t2x, t2y, t3x, t3y, framebuffer, rnd);
     }
 }
