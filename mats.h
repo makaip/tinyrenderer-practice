@@ -3,6 +3,8 @@
 #include <cmath>
 #include <iostream>
 
+#include "vecs.h"
+
 template <int n>
 struct mat {
     vec<n> rows[n];

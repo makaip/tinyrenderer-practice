@@ -6,11 +6,10 @@
 #include <sstream>
 #include <string>
 
+#include "mats.h"
 #include "model.h"
 #include "tgaimage.h"
 #include "vecs.h"
-#include "mats.h"
-
 
 constexpr TGAColor white   = {255, 255, 255, 255}; // attention, BGRA order
 constexpr TGAColor green   = {  0, 255,   0, 255};
@@ -18,18 +17,8 @@ constexpr TGAColor red     = {  0,   0, 255, 255};
 constexpr TGAColor blue    = {255, 128,  64, 255};
 constexpr TGAColor yellow  = {  0, 200, 255, 255};
 
-void line(int ax, int ay, int bx, int by, TGAImage& framebuffer,
-          TGAColor color);
-void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx,
-                   int cy, int cz, TGAImage& zbuffer, TGAImage& framebuffer,
-                   TGAColor color);
-float tri_area(int ax, int ay, int bx, int by, int cx, int cy);
-std::tuple<int, int, int> project_vert(vec3 point, int width, int height);
-void render_view(Model model, TGAImage& zbuffer, TGAImage& framebuffer,
-                 int width, int height);
-
 vec3 rot(vec3 v) {
-    const double a = M_PI / 2;
+    const double a = M_PI / 6;
     mat<3> Ry;
     Ry[0][0] =  std::cos(a); Ry[0][1] = 0; Ry[0][2] = std::sin(a);
     Ry[1][0] =  0;           Ry[1][1] = 1; Ry[1][2] = 0;
@@ -37,20 +26,9 @@ vec3 rot(vec3 v) {
     return Ry * v;
 }
 
-int main(int argc, char** argv) {
-    constexpr int width = 800;
-    constexpr int height = 800;
-
-    TGAImage framebuffer(width, height, TGAImage::RGB);
-    TGAImage zbuffer(width, height, TGAImage::GRAYSCALE);
-
-    Model model = Model("./obj/diablo3_pose/diablo3_pose.obj");
-
-    render_view(model, zbuffer, framebuffer, width, height);
-
-    framebuffer.write_tga_file("./framebuffer.tga", true, false);
-    zbuffer.write_tga_file("./zbuffer.tga", true, false);
-    return 0;
+vec3 persp(vec3 v) {
+    double c = 3.0;
+    return v / (1 - (v.z / c));
 }
 
 float tri_area(int ax, int ay, int bx, int by, int cx, int cy) {
@@ -129,9 +107,9 @@ void render_view(Model model, TGAImage& zbuffer, TGAImage& framebuffer,
     std::vector<Triangle3D*> sorted_tris;
 
     for (Triangle3D const triangle : model.triangles) {
-        auto [t1x, t1y, t1z] = project_vert(rot(triangle.p1), width, height);
-        auto [t2x, t2y, t2z] = project_vert(rot(triangle.p2), width, height);
-        auto [t3x, t3y, t3z] = project_vert(rot(triangle.p3), width, height);
+        auto [t1x, t1y, t1z] = project_vert(persp(rot(triangle.p1)), width, height);
+        auto [t2x, t2y, t2z] = project_vert(persp(rot(triangle.p2)), width, height);
+        auto [t3x, t3y, t3z] = project_vert(persp(rot(triangle.p3)), width, height);
 
         TGAColor rnd;
         for (int c = 0; c < 3; c++) rnd[c] = std::rand() % 255;
@@ -139,4 +117,20 @@ void render_view(Model model, TGAImage& zbuffer, TGAImage& framebuffer,
         draw_triangle(t1x, t1y, t1z, t2x, t2y, t2z, t3x, t3y, t3z, zbuffer,
                       framebuffer, rnd);
     }
+}
+
+int main(int argc, char** argv) {
+    constexpr int width = 800;
+    constexpr int height = 800;
+
+    TGAImage framebuffer(width, height, TGAImage::RGB);
+    TGAImage zbuffer(width, height, TGAImage::GRAYSCALE);
+
+    Model model = Model("./obj/diablo3_pose/diablo3_pose.obj");
+
+    render_view(model, zbuffer, framebuffer, width, height);
+
+    framebuffer.write_tga_file("./framebuffer.tga", true, false);
+    zbuffer.write_tga_file("./zbuffer.tga", true, false);
+    return 0;
 }
