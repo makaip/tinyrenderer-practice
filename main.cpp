@@ -56,9 +56,11 @@ void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx,
 
             if (a < 0 || b < 0 || g < 0) continue;
 
-            unsigned char z =
-                static_cast<unsigned char>(a * az + b * bz + g * cz);
-            if (z <= zbuffer.get(px, py)[0]) continue;
+            double zd = a * az + b * bz + g * cz;
+            if (zd <= zbuffer.get(px, py)[0]) continue;
+            if (zd > 255) zd = 255;
+
+            unsigned char z = static_cast<unsigned char>(zd);
             zbuffer.set(px, py, {z});
             framebuffer.set(px, py, color);
         }
