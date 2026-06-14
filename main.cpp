@@ -6,6 +6,7 @@
 
 #include "tgaimage.h"
 #include "model.h"
+#include "vecs.h"
 
 constexpr TGAColor white   = {255, 255, 255, 255}; // attention, BGRA order
 constexpr TGAColor green   = {  0, 255,   0, 255};
@@ -112,10 +113,6 @@ void render_view(Model model, TGAImage &zbuffer, TGAImage &framebuffer, int widt
         auto [t1x, t1y, t1z] = project_vert(triangle.p1, width, height);
         auto [t2x, t2y, t2z] = project_vert(triangle.p2, width, height);
         auto [t3x, t3y, t3z] = project_vert(triangle.p3, width, height);
-
-        // line(t1x, t1y, t2x, t2y, framebuffer, red);
-        // line(t1x, t1y, t3x, t3y, framebuffer, red);
-        // line(t3x, t3y, t2x, t2y, framebuffer, red);
 
         TGAColor rnd;
         for (int c=0; c<3; c++) rnd[c] = std::rand() % 255;
