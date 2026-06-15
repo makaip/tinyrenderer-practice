@@ -53,6 +53,38 @@ struct mat {
             for (int j = 0; j < n; j++) result[i][j] = rows[j][i];
         return result;
     }
+
+    double det() const {
+        double aug[n][n] = {};
+        for (int i = 0; i < n; i++)
+            for (int j = 0; j < n; j++) aug[i][j] = rows[i][j];
+
+        double sign = 1.0;
+        for (int col = 0; col < n; col++) {
+            int pivot = col;
+            for (int row = col + 1; row < n; row++)
+                if (std::abs(aug[row][col]) > std::abs(aug[pivot][col]))
+                    pivot = row;
+
+            if (pivot != col) {
+                for (int j = 0; j < n; j++)
+                    std::swap(aug[col][j], aug[pivot][j]);
+                sign = -sign;
+            }
+
+            if (std::abs(aug[col][col]) < 1e-12) return 0.0;
+
+            for (int row = col + 1; row < n; row++) {
+                double factor = aug[row][col] / aug[col][col];
+                for (int j = col; j < n; j++)
+                    aug[row][j] -= factor * aug[col][j];
+            }
+        }
+
+        double result = sign;
+        for (int i = 0; i < n; i++) result *= aug[i][i];
+        return result;
+    }
 };
 
 template <int n>

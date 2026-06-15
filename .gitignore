@@ -2,3 +2,5 @@ framebuffer.tga
 zbuffer.tga
 build/
 obj/
+.vscode/
+.DS_Store

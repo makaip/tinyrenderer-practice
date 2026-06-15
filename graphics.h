@@ -8,11 +8,15 @@
 #include <sstream>
 #include <string>
 
+#include "camera.h"
 #include "mats.h"
 #include "model.h"
 #include "tgaimage.h"
 #include "vecs.h"
 
+mat<4> ModelView, Viewport, Perspective;
+
+// clang-format off
 vec3 rot(vec3 v) {
     const double a = M_PI / 6;
     mat<3> Ry = {{
@@ -23,43 +27,53 @@ vec3 rot(vec3 v) {
     
     return Ry * v;
 }
+// clang-format on
 
-vec3 persp(vec3 v) {
-    double c = 3.0;
-    return v / (1 - (v.z / c));
+void perspective(const double f) {
+    Perspective = {
+        {{1, 0, 0, 0}, {0, 1, 0, 0}, {0, 0, 1, 0}, {0, 0, -1 / f, 1}}};
+}
+
+void viewport(const int x, const int y, const int w, const int h) {
+    Viewport = {{{w / 2., 0, 0, x + w / 2.},
+                 {0, h / 2., 0, y + h / 2.},
+                 {0, 0, 1, 0},
+                 {0, 0, 0, 1}}};
 }
 
 float tri_area(int ax, int ay, int bx, int by, int cx, int cy) {
     return (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by)) / 2;
 }
 
-void draw_triangle(int ax, int ay, int az, int bx, int by, int bz, int cx,
-                   int cy, int cz, TGAImage& zbuffer, TGAImage& framebuffer,
+void draw_triangle(const vec4 clip[3], TGAImage& zbuffer, TGAImage& framebuffer,
                    TGAColor color) {
-    float area = tri_area(ax, ay, bx, by, cx, cy);
+    vec4 ndc[3] = {clip[0] / clip[0].w, clip[1] / clip[1].w,
+                   clip[2] / clip[2].w};
+    vec2 screen[3] = {(Viewport * ndc[0]).xy(), (Viewport * ndc[1]).xy(),
+                      (Viewport * ndc[2]).xy()};
 
-    if (area <= 0) return;
+    mat<3> ABC = {{{screen[0].x, screen[0].y, 1.},
+                   {screen[1].x, screen[1].y, 1.},
+                   {screen[2].x, screen[2].y, 1.}}};
+    if (ABC.det() < 1) return;
 
-    int bbminx = std::min(std::min(ax, bx), cx);
-    int bbminy = std::min(std::min(ay, by), cy);
-    int bbmaxx = std::max(std::max(ax, bx), cx);
-    int bbmaxy = std::max(std::max(ay, by), cy);
+    auto [bbminx, bbmaxx] =
+        std::minmax({screen[0].x, screen[1].x, screen[2].x});
+    auto [bbminy, bbmaxy] =
+        std::minmax({screen[0].y, screen[1].y, screen[2].y});
 
 #pragma omp parallel for
     for (int px = bbminx; px < bbmaxx; ++px) {
         for (int py = bbminy; py < bbmaxy; ++py) {
-            double a = tri_area(px, py, bx, by, cx, cy) / area;
-            double b = tri_area(px, py, cx, cy, ax, ay) / area;
-            double g = tri_area(px, py, ax, ay, bx, by) / area;
+            vec3 bc = ABC.transpose() * vec3{static_cast<double>(px), static_cast<double>(py), 1.}; 
+            if (bc.x<0 || bc.y<0 || bc.z<0) continue;
+            double z = dot(bc, vec3{ndc[0].z, ndc[1].z, ndc[2].z});
 
-            if (a < 0 || b < 0 || g < 0) continue;
+            if (z <= zbuffer.get(px, py)[0]) continue;
+            if (z > 255) z = 255;
 
-            double zd = a * az + b * bz + g * cz;
-            if (zd <= zbuffer.get(px, py)[0]) continue;
-            if (zd > 255) zd = 255;
-
-            unsigned char z = static_cast<unsigned char>(zd);
-            zbuffer.set(px, py, {z});
+            unsigned char cz = static_cast<unsigned char>(z);
+            zbuffer.set(px, py, {cz});
             framebuffer.set(px, py, color);
         }
     }
@@ -95,29 +109,38 @@ void line(int ax, int ay, int bx, int by, TGAImage& framebuffer,
     }
 }
 
-std::tuple<int, int, int> project_vert(vec3 point, int width, int height) {
-    int x = static_cast<int>((point.x + 1.0) * width / 2.0);
-    int y = static_cast<int>((point.y + 1.0) * height / 2.0);
-    int z = static_cast<int>((point.z + 1.0) * 255.0 / 2.0);
-    return {x, y, z};
+void lookat(const vec3 eye, const vec3 center, const vec3 up) {
+    vec3 n = normalize(eye - center);
+    vec3 l = normalize(cross(up, n));
+    vec3 m = normalize(cross(n, l));
+
+    ModelView = mat<4>{{{l.x, l.y, l.z, 0},
+                        {m.x, m.y, m.z, 0},
+                        {n.x, n.y, n.z, 0},
+                        {0, 0, 0, 1}}} *
+                mat<4>{{{1, 0, 0, -center.x},
+                        {0, 1, 0, -center.y},
+                        {0, 0, 1, -center.z},
+                        {0, 0, 0, 1}}};
 }
 
-void rasterize(Model model, TGAImage& zbuffer, TGAImage& framebuffer, int width,
-               int height) {
+void rasterize(Model model, Camera& camera, TGAImage& zbuffer,
+               TGAImage& framebuffer, int width, int height) {
     std::vector<Triangle3D*> sorted_tris;
 
-    for (Triangle3D const triangle : model.triangles) {
-        auto [t1x, t1y, t1z] =
-            project_vert(persp(rot(triangle.p1)), width, height);
-        auto [t2x, t2y, t2z] =
-            project_vert(persp(rot(triangle.p2)), width, height);
-        auto [t3x, t3y, t3z] =
-            project_vert(persp(rot(triangle.p3)), width, height);
+    lookat(camera.eye, camera.center, camera.up);
+    perspective(norm(camera.eye - camera.center));
+    viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
 
+    for (Triangle3D const triangle : model.triangles) {
+        vec4 clip[3];
         TGAColor rnd;
         for (int c = 0; c < 3; c++) rnd[c] = std::rand() % 255;
 
-        draw_triangle(t1x, t1y, t1z, t2x, t2y, t2z, t3x, t3y, t3z, zbuffer,
-                      framebuffer, rnd);
+        int i = 0;
+        for (vec3 const& vert : {triangle.p1, triangle.p2, triangle.p3})
+            clip[i++] = Perspective * ModelView * vec4{vert.x, vert.y, vert.z, 1.};
+
+        draw_triangle(clip, zbuffer, framebuffer, rnd);
     }
 }

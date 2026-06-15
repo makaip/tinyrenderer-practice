@@ -47,6 +47,9 @@ template <>
 struct vec<3> {
     double x = 0, y = 0, z = 0;
 
+    vec() = default;
+    vec(double x, double y, double z) : x(x), y(y), z(z) {}
+
     double& operator[](const int i) {
         assert(i >= 0 && i < 3);
 
@@ -79,6 +82,7 @@ struct vec<4> {
         if (i == 2) return z;
         if (i == 3) return w;
     }
+
     double operator[](int i) const {
         assert(i >= 0 && i < 4);
 
@@ -87,6 +91,8 @@ struct vec<4> {
         if (i == 2) return z;
         if (i == 3) return w;
     }
+
+    vec<2> xy() const { return vec<2>(x, y); }
 };
 
 typedef vec<2> vec2;
@@ -152,17 +158,17 @@ vec3 cross(const vec3& u, const vec3& v) {
                 u.x * v.y - u.y * v.x);
 }
 
-template <int n>
+template <int n>  // length squared
 double norm2(const vec<n>& v) {
     return dot(v, v);
 }
 
-template <int n>
+template <int n>  // length
 double norm(const vec<n>& v) {
     return std::sqrt(norm2(v));
 }
 
-template <int n>
+template <int n>  // unit vec
 vec<n> normalize(const vec<n>& v) {
     return v / norm(v);
 }
