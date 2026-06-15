@@ -10,10 +10,24 @@ struct mat {
     vec<n> rows[n];
     mat() = default;
 
+    mat(std::initializer_list<std::initializer_list<double>> init) {
+        assert(init.size() == n);
+        int i = 0;
+        for (auto& row : init) {
+            assert(row.size() == n);
+            int j = 0;
+            for (auto& val : row) {
+                rows[i][j++] = val;
+            }
+            i++;
+        }
+    }
+
     vec<n>& operator[](int i) {
         assert(i >= 0 && i < n);
         return rows[i];
     }
+
     const vec<n>& operator[](int i) const {
         assert(i >= 0 && i < n);
         return rows[i];

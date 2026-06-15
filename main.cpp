@@ -19,10 +19,12 @@ constexpr TGAColor yellow  = {  0, 200, 255, 255};
 
 vec3 rot(vec3 v) {
     const double a = M_PI / 6;
-    mat<3> Ry;
-    Ry[0][0] =  std::cos(a); Ry[0][1] = 0; Ry[0][2] = std::sin(a);
-    Ry[1][0] =  0;           Ry[1][1] = 1; Ry[1][2] = 0;
-    Ry[2][0] = -std::sin(a); Ry[2][1] = 0; Ry[2][2] = std::cos(a);
+    mat<3> Ry = {{
+        {std::cos(a),   0,  std::sin(a)},
+        {0,             1,  0},
+        {-std::sin(a),  0,  std::cos(a)}
+    }};
+    
     return Ry * v;
 }
 
