@@ -2,6 +2,7 @@
 
 #define _USE_MATH_DEFINES
 
+#include <algorithm>
 #include <cmath>
 #include <fstream>
 #include <iostream>
@@ -62,12 +63,20 @@ void draw_triangle(const vec4 clip[3], TGAImage& zbuffer, TGAImage& framebuffer,
     auto [bbminy, bbmaxy] =
         std::minmax({screen[0].y, screen[1].y, screen[2].y});
 
-#pragma omp parallel for
-    for (int px = bbminx; px < bbmaxx; ++px) {
-        for (int py = bbminy; py < bbmaxy; ++py) {
-            vec3 bc = ABC.transpose() * vec3{static_cast<double>(px), static_cast<double>(py), 1.}; 
-            if (bc.x<0 || bc.y<0 || bc.z<0) continue;
+    mat<3> ABC_it = inverse(ABC).transpose();
+
+    #pragma omp parallel for
+    for (int px = std::max<int>(bbminx, 0);
+         px <= std::min<int>(bbmaxx, framebuffer.width() - 1); px++) {
+        for (int py = std::max<int>(bbminy, 0);
+             py <= std::min<int>(bbmaxy, framebuffer.height() - 1); py++) {
+            vec3 bc = ABC_it * vec3{static_cast<double>(px),
+                                    static_cast<double>(py), 1.};
+
+            if (bc.x < 0 || bc.y < 0 || bc.z < 0) continue;
             double z = dot(bc, vec3{ndc[0].z, ndc[1].z, ndc[2].z});
+
+            z = (z + 1.0) * 127.5;
 
             if (z <= zbuffer.get(px, py)[0]) continue;
             if (z > 255) z = 255;
@@ -139,7 +148,8 @@ void rasterize(Model model, Camera& camera, TGAImage& zbuffer,
 
         int i = 0;
         for (vec3 const& vert : {triangle.p1, triangle.p2, triangle.p3})
-            clip[i++] = Perspective * ModelView * vec4{vert.x, vert.y, vert.z, 1.};
+            clip[i++] =
+                Perspective * ModelView * vec4{vert.x, vert.y, vert.z, 1.};
 
         draw_triangle(clip, zbuffer, framebuffer, rnd);
     }
