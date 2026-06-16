@@ -23,6 +23,7 @@ struct PhongShader : IShader {
     const Model& model;
     vec3 light;
     vec3 tri[3];
+    vec3 varying_norm[3];
 
     PhongShader(const vec3 light_dir, const Model& m) : model(m) {
         light = normalize(
@@ -30,8 +31,8 @@ struct PhongShader : IShader {
                 .xyz());
     }
 
-    virtual vec4 vertex(const int nthvert, const vec3& v) override {
-        vec4 gl_Position = ModelView * vec4{v.x, v.y, v.z, 1.};
+    virtual vec4 vertex(const int nthvert, const Point3D& v) override {
+        vec4 gl_Position = ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
         tri[nthvert] = gl_Position.xyz();
         return Perspective * gl_Position;
     }
@@ -63,8 +64,8 @@ int main(int argc, char** argv) {
 
     TGAImage framebuffer(width, height, TGAImage::RGB);
     Model model = Model(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/diablo3_pose/"
-        "diablo3_pose.obj");
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
+        "african_head.obj");
     vec3 light{1, 1, 1};
     PhongShader shader(light, model);
     Camera camera;

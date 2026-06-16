@@ -20,7 +20,7 @@ std::vector<double> zbuffer;
 
 struct IShader {
     TGAColor color = {};
-    virtual vec4 vertex(const int nthvert, const vec3& v) = 0;
+    virtual vec4 vertex(const int nthvert, const Point3D& v) = 0;
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const = 0;
 };
 
@@ -126,10 +126,9 @@ void rasterize(Model& model, Camera& camera, IShader& shader,
     for (Triangle3D const& triangle : model.triangles) {
         vec4 clip[3];
 
-        int i = 0;
-        for (vec3 const& vert : {triangle.p1, triangle.p2, triangle.p3}) {
-            clip[i] = shader.vertex(i, vert);
-            i++;
+        size_t indices[3] = {triangle.p1, triangle.p2, triangle.p3};
+        for (int i = 0; i < 3; i++) {
+            clip[i] = shader.vertex(i, model.vertices[indices[i]]);
         }
 
         draw_triangle(clip, shader, framebuffer);

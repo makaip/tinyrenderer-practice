@@ -9,15 +9,20 @@
 
 #include "vecs.h"
 
+struct Point3D {
+    vec3 pos;
+    vec3 norm;
+};
+
 struct Triangle3D {
-    vec3 p1;
-    vec3 p2;
-    vec3 p3;
+    size_t p1;
+    size_t p2;
+    size_t p3;
 };
 
 class Model {
    public:
-    std::vector<vec3> vertices;
+    std::vector<Point3D> vertices;
     std::vector<Triangle3D> triangles;
 
     Model(const std::string filename) {
@@ -26,19 +31,24 @@ class Model {
         if (!file.is_open()) throw std::runtime_error("File did not load");
 
         std::string line;
+        int norm_iter = 0;
+
         while (std::getline(file, line)) {
             std::istringstream lstream(line);
             std::string _;
 
             if (line.starts_with("v ")) {
-                vec3 point;
-                lstream >> _ >> point.x >> point.y >> point.z;
+                Point3D point;
+                lstream >> _ >> point.pos.x >> point.pos.y >>
+                    point.pos.z;
                 vertices.push_back(point);
-            }
-
-            if (line.starts_with("f ")) {
-                Triangle3D tri;
-
+            } else if (line.starts_with("vn ")) {
+                if (norm_iter < vertices.size()) {
+                    Point3D& vert = vertices.at(norm_iter);
+                    lstream >> _ >> vert.norm.x >> vert.norm.y >> vert.norm.z;
+                    ++norm_iter;
+                }
+            } else if (line.starts_with("f ")) {
                 std::string v1, v2, v3;
                 lstream >> _ >> v1 >> v2 >> v3;
 
@@ -46,15 +56,15 @@ class Model {
                     return std::stoi(s.substr(0, s.find('/')));
                 };
 
-                int p1ind = parse_index(v1);
-                int p2ind = parse_index(v2);
-                int p3ind = parse_index(v3);
-
-                tri.p1 = vertices[p1ind - 1];
-                tri.p2 = vertices[p2ind - 1];
-                tri.p3 = vertices[p3ind - 1];
+                Triangle3D tri{
+                    static_cast<size_t>(parse_index(v1) - 1),
+                    static_cast<size_t>(parse_index(v2) - 1),
+                    static_cast<size_t>(parse_index(v3) - 1),
+                };
 
                 triangles.push_back(tri);
+            } else {
+                continue;
             }
         }
     }
