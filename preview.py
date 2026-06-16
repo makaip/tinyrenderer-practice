@@ -4,7 +4,7 @@ import cv2
 import os
 import time
 
-filename = "zbuffer.tga"
+filename = "framebuffer.tga"
 
 last_mtime = None
 cv2.namedWindow("fb", cv2.WINDOW_AUTOSIZE)

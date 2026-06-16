@@ -19,19 +19,35 @@ constexpr TGAColor blue    = {255, 128,  64, 255};
 constexpr TGAColor yellow  = {  0, 200, 255, 255};
 // clang-format on
 
+struct RandomShader : IShader {
+    const Model& model;
+    vec3 tri[3];
+
+    RandomShader(const Model& m) : model(m) {}
+
+    virtual vec4 vertex(const int vert) {
+        vec3 v = model.vertices[vert];
+        vec4 gl_Position = ModelView * vec4{v.x, v.y, v.z, 1.};
+        tri[vert] = gl_Position.xyz();
+        return Perspective * gl_Position;
+    }
+
+    virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
+        return {false, color};
+    }
+};
+
 int main(int argc, char** argv) {
     constexpr int width = 800;
     constexpr int height = 800;
-    
-    TGAImage framebuffer(width, height, TGAImage::RGB);
-    TGAImage zbuffer(width, height, TGAImage::GRAYSCALE);
 
-    Model model = Model("./obj/diablo3_pose/diablo3_pose.obj");
+    TGAImage framebuffer(width, height, TGAImage::RGB);
+    Model model = Model("F:/Programming/GitHub/tinyrenderer-practice/obj/diablo3_pose/diablo3_pose.obj");
+    RandomShader shader(model);
     Camera camera;
 
-    rasterize(model, camera, zbuffer, framebuffer, width, height);
+    rasterize(model, camera, shader, framebuffer, width, height);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
-    zbuffer.write_tga_file("./zbuffer.tga", true, false);
     return 0;
 }

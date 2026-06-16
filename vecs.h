@@ -33,6 +33,8 @@ struct vec<2> {
 
         if (i == 0) return x;
         if (i == 1) return y;
+
+        return y;
     }
 
     double operator[](int i) const {
@@ -40,6 +42,8 @@ struct vec<2> {
 
         if (i == 0) return x;
         if (i == 1) return y;
+
+        return y;
     }
 };
 
@@ -56,6 +60,8 @@ struct vec<3> {
         if (i == 0) return x;
         if (i == 1) return y;
         if (i == 2) return z;
+
+        return z;
     }
 
     double operator[](const int i) const {
@@ -64,6 +70,8 @@ struct vec<3> {
         if (i == 0) return x;
         if (i == 1) return y;
         if (i == 2) return z;
+
+        return z;
     }
 };
 
@@ -81,6 +89,8 @@ struct vec<4> {
         if (i == 1) return y;
         if (i == 2) return z;
         if (i == 3) return w;
+
+        return w;
     }
 
     double operator[](int i) const {
@@ -90,9 +100,12 @@ struct vec<4> {
         if (i == 1) return y;
         if (i == 2) return z;
         if (i == 3) return w;
+
+        return w;
     }
 
     vec<2> xy() const { return vec<2>(x, y); }
+    vec<3> xyz() const { return vec<3>(x, y, z); }
 };
 
 typedef vec<2> vec2;
