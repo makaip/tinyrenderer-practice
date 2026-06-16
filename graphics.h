@@ -20,6 +20,7 @@ std::vector<double> zbuffer;
 
 struct IShader {
     TGAColor color = {};
+    virtual vec4 vertex(const int nthvert, const vec3& v) = 0;
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const = 0;
 };
 
@@ -57,7 +58,7 @@ void init_zbuffer(const int width, const int height) {
 }
 
 void draw_triangle(const vec4 clip[3], const IShader& shader,
-                   TGAImage& framebuffer, TGAColor color) {
+                   TGAImage& framebuffer) {
     vec4 ndc[3] = {clip[0] / clip[0].w, clip[1] / clip[1].w,
                    clip[2] / clip[2].w};
     vec2 screen[3] = {(Viewport * ndc[0]).xy(), (Viewport * ndc[1]).xy(),
@@ -88,7 +89,10 @@ void draw_triangle(const vec4 clip[3], const IShader& shader,
             double z = dot(bc, vec3{ndc[0].z, ndc[1].z, ndc[2].z});
             if (z <= zbuffer.at(px + py * framebuffer.width())) continue;
 
-            auto [discard, color] = shader.fragment(bc);
+            auto frag = shader.fragment(bc);
+            bool discard = std::get<0>(frag);
+            TGAColor color = std::get<1>(frag);
+
             if (discard) continue;
 
             zbuffer.at(px + py * framebuffer.width()) = z;
@@ -119,18 +123,15 @@ void rasterize(Model& model, Camera& camera, IShader& shader,
     init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
     init_zbuffer(width, height);
 
-    for (Triangle3D const triangle : model.triangles) {
+    for (Triangle3D const& triangle : model.triangles) {
         vec4 clip[3];
-        TGAColor rnd;
-        for (int c = 0; c < 3; c++) rnd[c] = std::rand() % 255;
-
-        shader.color = rnd;
 
         int i = 0;
-        for (vec3 const& vert : {triangle.p1, triangle.p2, triangle.p3})
-            clip[i++] =
-                Perspective * ModelView * vec4{vert.x, vert.y, vert.z, 1.};
+        for (vec3 const& vert : {triangle.p1, triangle.p2, triangle.p3}) {
+            clip[i] = shader.vertex(i, vert);
+            i++;
+        }
 
-        draw_triangle(clip, shader, framebuffer, rnd);
+        draw_triangle(clip, shader, framebuffer);
     }
 }

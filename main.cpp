@@ -19,21 +19,41 @@ constexpr TGAColor blue    = {255, 128,  64, 255};
 constexpr TGAColor yellow  = {  0, 200, 255, 255};
 // clang-format on
 
-struct RandomShader : IShader {
+struct PhongShader : IShader {
     const Model& model;
+    vec3 light;
     vec3 tri[3];
 
-    RandomShader(const Model& m) : model(m) {}
+    PhongShader(const vec3 light_dir, const Model& m) : model(m) {
+        light = normalize(
+            (ModelView * vec4{light_dir.x, light_dir.y, light_dir.z, 0.})
+                .xyz());
+    }
 
-    virtual vec4 vertex(const int vert) {
-        vec3 v = model.vertices[vert];
+    virtual vec4 vertex(const int nthvert, const vec3& v) override {
         vec4 gl_Position = ModelView * vec4{v.x, v.y, v.z, 1.};
-        tri[vert] = gl_Position.xyz();
+        tri[nthvert] = gl_Position.xyz();
         return Perspective * gl_Position;
     }
 
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
-        return {false, color};
+        TGAColor col = {255, 255, 255, 255};
+        vec3 light = {1, 0, 0};
+        double ambient = 0.1;
+
+        vec3 normal = normalize(cross(tri[1] - tri[0], tri[2] - tri[0]));
+        double normlight = dot(normal, light);
+
+        vec3 reflection = normalize(normal * normlight * 2 - light);
+        double diffuse = std::max(0.0, normlight);
+        double specular = std::pow(std::max(reflection.z, 0.0), 35);
+
+        for (int channel : {0, 1, 2}) {
+            col[channel] *=
+                std::min(1.0, ambient + 0.6 * diffuse + 0.9 * specular);
+        }
+
+        return {false, col};
     }
 };
 
@@ -42,8 +62,11 @@ int main(int argc, char** argv) {
     constexpr int height = 800;
 
     TGAImage framebuffer(width, height, TGAImage::RGB);
-    Model model = Model("F:/Programming/GitHub/tinyrenderer-practice/obj/diablo3_pose/diablo3_pose.obj");
-    RandomShader shader(model);
+    Model model = Model(
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/diablo3_pose/"
+        "diablo3_pose.obj");
+    vec3 light{1, 1, 1};
+    PhongShader shader(light, model);
     Camera camera;
 
     rasterize(model, camera, shader, framebuffer, width, height);
