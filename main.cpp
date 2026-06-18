@@ -35,7 +35,7 @@ struct PhongShader : IShader {
         // mat<4> TransposedModelView = ModelView.transpose();
 
         vec4 gl_pos = ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
-        vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 1.};
+        vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 0.};
         
         tri[nthvert] = gl_pos.xyz();
         norm[nthvert] = gl_norm.xyz();
@@ -72,12 +72,17 @@ int main(int argc, char** argv) {
 
     TGAImage framebuffer(width, height, TGAImage::RGB);
     Model model = Model(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
-        "african_head.obj");
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/"
+        "head.obj");
     vec3 light{1, 1, 1};
     PhongShader shader(light, model);
     Camera camera;
 
+    Model model2 = Model(
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/"
+        "body.obj");
+
+    rasterize(model2, camera, shader, framebuffer, width, height);
     rasterize(model, camera, shader, framebuffer, width, height);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
