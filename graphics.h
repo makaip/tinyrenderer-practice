@@ -134,3 +134,21 @@ void rasterize(Model& model, Camera& camera, IShader& shader,
         draw_triangle(clip, shader, framebuffer);
     }
 }
+
+std::tuple<float, float, float> barycentric_coords(vec3 P, vec3 A, vec3 B, vec3 C) {
+    vec3 v0 = B - A;
+    vec3 v1 = C - A;
+    vec3 v2 = P - A;
+
+    float d00 = dot(v0, v0);
+    float d01 = dot(v0, v1);
+    float d11 = dot(v1, v1);
+    float d20 = dot(v2, v0);
+    float d21 = dot(v2, v1);
+
+    float beta = (d11 * d20 - d01 * d21) / (d00 * d11 - d01 * d01);
+    float gamma = (d00 * d21 - d01 * d20) / (d00 * d11 - d01 * d01);
+    float alpha = 1 - beta - gamma;
+
+    return {alpha, beta, gamma};
+}

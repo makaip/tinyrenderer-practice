@@ -23,18 +23,24 @@ struct PhongShader : IShader {
     const Model& model;
     vec3 light;
     vec3 tri[3];
-    vec3 varying_norm[3];
+    vec3 norm[3];
 
     PhongShader(const vec3 light_dir, const Model& m) : model(m) {
         light = normalize(
             (ModelView * vec4{light_dir.x, light_dir.y, light_dir.z, 0.})
                 .xyz());
     }
-
+    
     virtual vec4 vertex(const int nthvert, const Point3D& v) override {
-        vec4 gl_Position = ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
-        tri[nthvert] = gl_Position.xyz();
-        return Perspective * gl_Position;
+        // mat<4> TransposedModelView = ModelView.transpose();
+
+        vec4 gl_pos = ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
+        vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 1.};
+        
+        tri[nthvert] = gl_pos.xyz();
+        norm[nthvert] = gl_norm.xyz();
+        
+        return Perspective * gl_pos;
     }
 
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
@@ -42,7 +48,9 @@ struct PhongShader : IShader {
         vec3 light = {1, 0, 0};
         double ambient = 0.1;
 
-        vec3 normal = normalize(cross(tri[1] - tri[0], tri[2] - tri[0]));
+        // vec3 normal = normalize(cross(tri[1] - tri[0], tri[2] - tri[0]));
+        vec3 normal = normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
+        
         double normlight = dot(normal, light);
 
         vec3 reflection = normalize(normal * normlight * 2 - light);
