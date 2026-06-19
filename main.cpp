@@ -21,28 +21,29 @@ constexpr TGAColor yellow  = {  0, 200, 255, 255};
 
 struct PhongShader : IShader {
     const Model& model;
+    const TGAImage& albedo_map;
     const TGAImage& norm_map;
 
     vec3 light;
     vec3 tri[3];
     vec3 norm[3];
+    vec3 alb[3];
     vec2 uv[3];
 
-    PhongShader(const vec3 light_dir, const Model& m, const TGAImage& n)
-        : model(m), norm_map(n) {
+    PhongShader(const vec3 light_dir, const Model& m, const TGAImage& a,
+                const TGAImage& n)
+        : model(m), albedo_map(a), norm_map(n) {
         light = normalize(
             (ModelView * vec4{light_dir.x, light_dir.y, light_dir.z, 0.})
                 .xyz());
     }
 
     virtual vec4 vertex(const int nthvert, const Point3D& v) override {
-        // mat<4> TransposedModelView = ModelView.transpose();
-
         vec4 gl_pos = ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
-        vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 0.};
+        // vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 0.};
 
         tri[nthvert] = gl_pos.xyz();
-        norm[nthvert] = gl_norm.xyz();
+        // norm[nthvert] = gl_norm.xyz();
         uv[nthvert] = v.uv;
 
         return Perspective * gl_pos;
@@ -50,20 +51,27 @@ struct PhongShader : IShader {
 
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
         TGAColor col = {255, 255, 255, 255};
-        vec3 light = {1, 0.5, 0.5};
-        double ambient = 0.3;
+        double ambient = 0.2;
 
-        // vec3 normal = normalize(cross(tri[1] - tri[0], tri[2] - tri[0]));
-        vec3 raw_normal =
-            normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
+        // vec3 raw_normal =
+        //     normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
+
         vec2 uv_coords = bar.x * uv[0] + bar.y * uv[1] + bar.z * uv[2];
 
-        TGAColor color = sample2D(norm_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
-        vec3 map_normal = {color[2] / 255.0 * 2.0 - 1.0,
-                           color[1] / 255.0 * 2.0 - 1.0,
-                           color[0] / 255.0 * 2.0 - 1.0};
-        
-        vec3 normal = map_normal;
+        TGAColor a_color =
+            sample2D(albedo_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
+        TGAColor n_color =
+            sample2D(norm_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
+
+        vec3 map_normal = {n_color[2] / 255.0 * 2.0 - 1.0,
+                           n_color[1] / 255.0 * 2.0 - 1.0,
+                           n_color[0] / 255.0 * 2.0 - 1.0};
+
+        vec3 albedo = {a_color[0] / 255.0, a_color[1] / 255.0,
+                       a_color[2] / 255.0};
+        vec3 normal = normalize(
+            (ModelView * vec4{map_normal.x, map_normal.y, map_normal.z, 0.})
+                .xyz());
 
         double normlight = dot(normal, light);
         vec3 reflection = normalize(normal * normlight * 2 - light);
@@ -71,8 +79,9 @@ struct PhongShader : IShader {
         double specular = std::pow(std::max(reflection.z, 0.0), 35);
 
         for (int channel : {0, 1, 2}) {
-            col[channel] *=
-                std::min(1.0, ambient + 0.6 * diffuse + 0.9 * specular);
+            double shaded_color =
+                (ambient + 0.6 * diffuse) * albedo[channel] + 0.9 * specular;
+            col[channel] = 255.0 * std::min(1.0, shaded_color);
         }
 
         return {false, col};
@@ -93,10 +102,20 @@ int main(int argc, char** argv) {
         "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
         "african_head_nm.tga");
 
-    vec3 light{1, 1, 1};
-    PhongShader shader(light, model, normal_map);
+    TGAImage albedo_map;
+    albedo_map.read_tga_file(
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
+        "african_head_diffuse.tga");
+
+    vec3 light = {1, 0.5, 0.5};
     Camera camera;
 
+    lookat(camera.eye, camera.center, camera.up);
+    init_perspective(norm(camera.eye - camera.center));
+    init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
+    init_zbuffer(width, height);
+
+    PhongShader shader(light, model, albedo_map, normal_map);
     rasterize(model, camera, shader, framebuffer, width, height);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);

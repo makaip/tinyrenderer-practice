@@ -122,11 +122,6 @@ void lookat(const vec3 eye, const vec3 center, const vec3 up) {
 
 void rasterize(Model& model, Camera& camera, IShader& shader,
                TGAImage& framebuffer, int width, int height) {
-    lookat(camera.eye, camera.center, camera.up);
-    init_perspective(norm(camera.eye - camera.center));
-    init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
-    init_zbuffer(width, height);
-
     for (Triangle3D const& triangle : model.triangles) {
         vec4 clip[3];
 
