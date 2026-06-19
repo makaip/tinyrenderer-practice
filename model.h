@@ -76,7 +76,7 @@ class Model {
                 if (!temp_normals.empty()) {
                     vertices[idx1].norm = temp_normals[parse_norms(v1) - 1];
                     vertices[idx2].norm = temp_normals[parse_norms(v2) - 1];
-                    vertices[idx3].norm = temp_normals[parse_norms(v3) - 3];
+                    vertices[idx3].norm = temp_normals[parse_norms(v3) - 1];
                 }
 
                 if (!temp_uvs.empty()) {

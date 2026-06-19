@@ -22,6 +22,10 @@ struct IShader {
     TGAColor color = {};
     virtual vec4 vertex(const int nthvert, const Point3D& v) = 0;
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const = 0;
+
+    static TGAColor sample2D(const TGAImage& img, const vec2& uvf) {
+        return img.get(uvf[0] * img.width(), uvf[1] * img.height());
+    }
 };
 
 // clang-format off
