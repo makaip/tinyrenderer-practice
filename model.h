@@ -12,6 +12,7 @@
 struct Point3D {
     vec3 pos;
     vec3 norm;
+    vec2 uv;
 };
 
 struct Triangle3D {
@@ -32,6 +33,8 @@ class Model {
 
         std::string line;
         std::vector<vec3> temp_normals;
+        std::vector<vec2> temp_uvs;
+
         int norm_iter = 0;
 
         while (std::getline(file, line)) {
@@ -46,6 +49,10 @@ class Model {
                 vec3 norm;
                 lstream >> _ >> norm.x >> norm.y >> norm.z;
                 temp_normals.push_back(norm);
+            } else if (line.starts_with("vt ")) {
+                vec2 uv;
+                lstream >> _ >> uv.x >> uv.y >> _;
+                temp_uvs.push_back(uv);
             } else if (line.starts_with("f ")) {
                 std::string v1, v2, v3;
                 lstream >> _ >> v1 >> v2 >> v3;
@@ -58,6 +65,10 @@ class Model {
                     return std::stoi(s.substr(s.find_last_of('/') + 1));
                 };
 
+                auto parse_uvs = [](const std::string& s) {
+                    return std::stoi(s.substr(s.find_first_of('/') + 1));
+                };
+
                 size_t idx1 = parse_vecs(v1) - 1;
                 size_t idx2 = parse_vecs(v2) - 1;
                 size_t idx3 = parse_vecs(v3) - 1;
@@ -66,6 +77,12 @@ class Model {
                     vertices[idx1].norm = temp_normals[parse_norms(v1) - 1];
                     vertices[idx2].norm = temp_normals[parse_norms(v2) - 1];
                     vertices[idx3].norm = temp_normals[parse_norms(v3) - 3];
+                }
+
+                if (!temp_uvs.empty()) {
+                    vertices[idx1].uv = temp_uvs[parse_uvs(v1) - 1];
+                    vertices[idx2].uv = temp_uvs[parse_uvs(v2) - 1];
+                    vertices[idx3].uv = temp_uvs[parse_uvs(v3) - 1];
                 }
 
                 Triangle3D tri{idx1, idx2, idx3};

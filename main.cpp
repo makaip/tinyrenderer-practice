@@ -46,7 +46,7 @@ struct PhongShader : IShader {
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
         TGAColor col = {255, 255, 255, 255};
         vec3 light = {1, 0, 0};
-        double ambient = 0.1;
+        double ambient = 0.3;
 
         // vec3 normal = normalize(cross(tri[1] - tri[0], tri[2] - tri[0]));
         vec3 normal = normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
@@ -72,17 +72,12 @@ int main(int argc, char** argv) {
 
     TGAImage framebuffer(width, height, TGAImage::RGB);
     Model model = Model(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/"
-        "head.obj");
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
+        "african_head.obj");
     vec3 light{1, 1, 1};
     PhongShader shader(light, model);
     Camera camera;
 
-    Model model2 = Model(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/"
-        "body.obj");
-
-    rasterize(model2, camera, shader, framebuffer, width, height);
     rasterize(model, camera, shader, framebuffer, width, height);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
