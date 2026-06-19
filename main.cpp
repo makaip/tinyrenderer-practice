@@ -21,8 +21,10 @@ constexpr TGAColor yellow  = {  0, 200, 255, 255};
 
 struct PhongShader : IShader {
     const Model& model;
+
     const TGAImage& albedo_map;
     const TGAImage& norm_map;
+    const TGAImage& spec_map;
 
     vec3 light;
     vec3 tri[3];
@@ -31,8 +33,8 @@ struct PhongShader : IShader {
     vec2 uv[3];
 
     PhongShader(const vec3 light_dir, const Model& m, const TGAImage& a,
-                const TGAImage& n)
-        : model(m), albedo_map(a), norm_map(n) {
+                const TGAImage& n, const TGAImage& s)
+        : model(m), albedo_map(a), norm_map(n), spec_map(s) {
         light = normalize(
             (ModelView * vec4{light_dir.x, light_dir.y, light_dir.z, 0.})
                 .xyz());
@@ -62,13 +64,18 @@ struct PhongShader : IShader {
             sample2D(albedo_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
         TGAColor n_color =
             sample2D(norm_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
+        TGAColor s_color =
+            sample2D(spec_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
+
+        vec3 albedo = {a_color[0] / 255.0, a_color[1] / 255.0,
+                       a_color[2] / 255.0};
 
         vec3 map_normal = {n_color[2] / 255.0 * 2.0 - 1.0,
                            n_color[1] / 255.0 * 2.0 - 1.0,
                            n_color[0] / 255.0 * 2.0 - 1.0};
 
-        vec3 albedo = {a_color[0] / 255.0, a_color[1] / 255.0,
-                       a_color[2] / 255.0};
+        double map_spec = s_color[0] / 255.0;
+
         vec3 normal = normalize(
             (ModelView * vec4{map_normal.x, map_normal.y, map_normal.z, 0.})
                 .xyz());
@@ -79,8 +86,9 @@ struct PhongShader : IShader {
         double specular = std::pow(std::max(reflection.z, 0.0), 35);
 
         for (int channel : {0, 1, 2}) {
-            double shaded_color =
-                (ambient + 0.6 * diffuse) * albedo[channel] + 0.9 * specular;
+            double shaded_color = (ambient + 0.6 * diffuse) * albedo[channel] +
+                                  (specular * map_spec);
+
             col[channel] = 255.0 * std::min(1.0, shaded_color);
         }
 
@@ -107,6 +115,11 @@ int main(int argc, char** argv) {
         "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
         "african_head_diffuse.tga");
 
+    TGAImage specular_map;
+    specular_map.read_tga_file(
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
+        "african_head_spec.tga");
+
     vec3 light = {1, 0.5, 0.5};
     Camera camera;
 
@@ -115,7 +128,7 @@ int main(int argc, char** argv) {
     init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
     init_zbuffer(width, height);
 
-    PhongShader shader(light, model, albedo_map, normal_map);
+    PhongShader shader(light, model, albedo_map, normal_map, specular_map);
     rasterize(model, camera, shader, framebuffer, width, height);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
