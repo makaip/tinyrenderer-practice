@@ -58,6 +58,11 @@ struct PhongShader : IShader {
         // vec3 raw_normal =
         //     normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
 
+        // vec3 e0 = tri[1] - tri[0];
+        // vec3 e1 = tri[2] - tri[0];
+        // vec2 u0 = uv[1] - uv[0];
+        // vec2 u1 = uv[2] - uv[0];
+
         vec2 uv_coords = bar.x * uv[0] + bar.y * uv[1] + bar.z * uv[2];
 
         TGAColor a_color =

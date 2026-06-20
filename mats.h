@@ -6,16 +6,16 @@
 
 #include "vecs.h"
 
-template <int n>
+template <int n, int m = n>
 struct mat {
-    vec<n> rows[n];
+    vec<m> rows[n];
     mat() = default;
 
     mat(std::initializer_list<std::initializer_list<double>> init) {
         assert(init.size() == n);
         int i = 0;
         for (auto& row : init) {
-            assert(row.size() == n);
+            assert((int)row.size() == m);
             int j = 0;
             for (auto& val : row) {
                 rows[i][j++] = val;
@@ -24,37 +24,39 @@ struct mat {
         }
     }
 
-    vec<n>& operator[](int i) {
+    vec<m>& operator[](int i) {
         assert(i >= 0 && i < n);
         return rows[i];
     }
 
-    const vec<n>& operator[](int i) const {
+    const vec<m>& operator[](int i) const {
         assert(i >= 0 && i < n);
         return rows[i];
     }
 
     static mat identity() {
-        mat m;
-        for (int i = 0; i < n; i++) m[i][i] = 1.0;
-        return m;
+        static_assert(n == m, "identity() requires a square matrix");
+        mat result;
+        for (int i = 0; i < n; i++) result[i][i] = 1.0;
+        return result;
     }
 
     vec<n> col(int j) const {
-        assert(j >= 0 && j < n);
+        assert(j >= 0 && j < m);
         vec<n> c;
         for (int i = 0; i < n; i++) c[i] = rows[i][j];
         return c;
     }
 
-    mat transpose() const {
-        mat result;
+    mat<m, n> transpose() const {
+        mat<m, n> result;
         for (int i = 0; i < n; i++)
-            for (int j = 0; j < n; j++) result[i][j] = rows[j][i];
+            for (int j = 0; j < m; j++) result[j][i] = rows[i][j];
         return result;
     }
 
     double det() const {
+        static_assert(n == m, "det() requires a square matrix");
         double aug[n][n] = {};
         for (int i = 0; i < n; i++)
             for (int j = 0; j < n; j++) aug[i][j] = rows[i][j];
@@ -87,23 +89,23 @@ struct mat {
     }
 };
 
-template <int n>
-mat<n> operator*(const mat<n>& A, const mat<n>& B) {
-    mat<n> result;
+template <int n, int m, int p>
+mat<n, p> operator*(const mat<n, m>& A, const mat<m, p>& B) {
+    mat<n, p> result;
     for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++) result[i][j] = dot(A[i], B.col(j));
+        for (int j = 0; j < p; j++) result[i][j] = dot(A[i], B.col(j));
     return result;
 }
 
-template <int n>
-vec<n> operator*(const mat<n>& A, const vec<n>& v) {
+template <int n, int m>
+vec<n> operator*(const mat<n, m>& A, const vec<m>& v) {
     vec<n> result;
     for (int i = 0; i < n; i++) result[i] = dot(A[i], v);
     return result;
 }
 
-template <int n>
-std::ostream& operator<<(std::ostream& out, const mat<n>& M) {
+template <int n, int m>
+std::ostream& operator<<(std::ostream& out, const mat<n, m>& M) {
     for (int i = 0; i < n; i++) out << M[i] << "\n";
     return out;
 }
