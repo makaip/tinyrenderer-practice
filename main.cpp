@@ -42,10 +42,10 @@ struct PhongShader : IShader {
 
     virtual vec4 vertex(const int nthvert, const Point3D& v) override {
         vec4 gl_pos = ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
-        // vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 0.};
+        vec4 gl_norm = ModelView * vec4{v.norm.x, v.norm.y, v.norm.z, 0.};
 
         tri[nthvert] = gl_pos.xyz();
-        // norm[nthvert] = gl_norm.xyz();
+        norm[nthvert] = gl_norm.xyz();
         uv[nthvert] = v.uv;
 
         return Perspective * gl_pos;
@@ -55,13 +55,35 @@ struct PhongShader : IShader {
         TGAColor col = {255, 255, 255, 255};
         double ambient = 0.2;
 
-        // vec3 raw_normal =
-        //     normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
+        vec3 e0 = tri[1] - tri[0];
+        vec3 e1 = tri[2] - tri[0];
+        vec2 u0 = uv[1] - uv[0];
+        vec2 u1 = uv[2] - uv[0];
 
-        // vec3 e0 = tri[1] - tri[0];
-        // vec3 e1 = tri[2] - tri[0];
-        // vec2 u0 = uv[1] - uv[0];
-        // vec2 u1 = uv[2] - uv[0];
+        // clang-format off
+        mat<3,2> E = {{e0.x, e1.x},
+                      {e0.y, e1.y},
+                      {e0.z, e1.z}};
+
+        mat<2> U = {{u0.x, u0.y},
+                    {u1.x, u1.y}};
+        // clang-format on
+
+        mat<3, 2> tb = E * inverse(U).transpose();
+
+        vec3 face_tang =   normalize(vec3{tb[0][0], tb[1][0], tb[2][0]});
+        vec3 face_bitang = normalize(vec3{tb[0][1], tb[1][1], tb[2][1]});
+        vec3 interp_normal =
+            normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
+
+        // clang-format off
+        mat<4, 3> D = {
+            {face_tang.x,     face_tang.y,     face_tang.z},
+            {face_bitang.x,   face_bitang.y,   face_bitang.z},
+            {interp_normal.x, interp_normal.y, interp_normal.z},
+            {0,               0,               1}
+        };
+        // clang-format on
 
         vec2 uv_coords = bar.x * uv[0] + bar.y * uv[1] + bar.z * uv[2];
 
@@ -74,16 +96,12 @@ struct PhongShader : IShader {
 
         vec3 albedo = {a_color[0] / 255.0, a_color[1] / 255.0,
                        a_color[2] / 255.0};
-
         vec3 map_normal = {n_color[2] / 255.0 * 2.0 - 1.0,
                            n_color[1] / 255.0 * 2.0 - 1.0,
                            n_color[0] / 255.0 * 2.0 - 1.0};
-
         double map_spec = s_color[0] / 255.0;
 
-        vec3 normal = normalize(
-            (ModelView * vec4{map_normal.x, map_normal.y, map_normal.z, 0.})
-                .xyz());
+        vec3 normal = normalize(D.transpose() * vec4{map_normal.x, map_normal.y, map_normal.z, 0.});
 
         double normlight = dot(normal, light);
         vec3 reflection = normalize(normal * normlight * 2 - light);
@@ -93,7 +111,6 @@ struct PhongShader : IShader {
         for (int channel : {0, 1, 2}) {
             double shaded_color = (ambient + 0.6 * diffuse) * albedo[channel] +
                                   (specular * map_spec);
-
             col[channel] = 255.0 * std::min(1.0, shaded_color);
         }
 
@@ -113,7 +130,7 @@ int main(int argc, char** argv) {
     TGAImage normal_map;
     normal_map.read_tga_file(
         "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
-        "african_head_nm.tga");
+        "african_head_nm_tangent.tga");
 
     TGAImage albedo_map;
     albedo_map.read_tga_file(
