@@ -93,7 +93,11 @@ void draw_triangle(const vec4 clip[3], const IShader& shader,
             double z = dot(bc, vec3{ndc[0].z, ndc[1].z, ndc[2].z});
             if (z <= zbuffer.at(px + py * framebuffer.width())) continue;
 
-            auto frag = shader.fragment(bc);
+            vec3 bc_clip = {bc.x / clip[0].w, bc.y / clip[1].w,
+                            bc.z / clip[2].w};
+            bc_clip = bc_clip / (bc_clip.x + bc_clip.y + bc_clip.z);
+
+            auto frag = shader.fragment(bc_clip);
             bool discard = std::get<0>(frag);
             TGAColor color = std::get<1>(frag);
 
