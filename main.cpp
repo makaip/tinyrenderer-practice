@@ -71,7 +71,7 @@ struct PhongShader : IShader {
 
         mat<3, 2> tb = E * inverse(U).transpose();
 
-        vec3 face_tang =   normalize(vec3{tb[0][0], tb[1][0], tb[2][0]});
+        vec3 face_tang = normalize(vec3{tb[0][0], tb[1][0], tb[2][0]});
         vec3 face_bitang = normalize(vec3{tb[0][1], tb[1][1], tb[2][1]});
         vec3 interp_normal =
             normalize(bar.x * norm[0] + bar.y * norm[1] + bar.z * norm[2]);
@@ -101,7 +101,8 @@ struct PhongShader : IShader {
                            n_color[0] / 255.0 * 2.0 - 1.0};
         double map_spec = s_color[0] / 255.0;
 
-        vec3 normal = normalize(D.transpose() * vec4{map_normal.x, map_normal.y, map_normal.z, 0.});
+        vec3 normal = normalize(
+            D.transpose() * vec4{map_normal.x, map_normal.y, map_normal.z, 0.});
 
         double normlight = dot(normal, light);
         vec3 reflection = normalize(normal * normlight * 2 - light);
@@ -118,40 +119,50 @@ struct PhongShader : IShader {
     }
 };
 
+void render_model(const vec3& light, Camera& camera,
+                  TGAImage& framebuffer, int width, int height,
+                  std::string_view path, std::string_view name) {
+    std::string base_path = std::string(path) + std::string(name);
+
+    Model model(base_path + ".obj");
+
+    TGAImage normal_map;
+    normal_map.read_tga_file(base_path + "_nm_tangent.tga");
+
+    TGAImage albedo_map;
+    albedo_map.read_tga_file(base_path + "_diffuse.tga");
+
+    TGAImage specular_map;
+    specular_map.read_tga_file(base_path + "_spec.tga");
+
+    PhongShader shader(light, model, albedo_map, normal_map, specular_map);
+    rasterize(model, camera, shader, framebuffer, width, height);
+}
+
 int main(int argc, char** argv) {
     constexpr int width = 800;
     constexpr int height = 800;
 
-    TGAImage framebuffer(width, height, TGAImage::RGB);
-    Model model = Model(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
-        "african_head.obj");
-
-    TGAImage normal_map;
-    normal_map.read_tga_file(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
-        "african_head_nm_tangent.tga");
-
-    TGAImage albedo_map;
-    albedo_map.read_tga_file(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
-        "african_head_diffuse.tga");
-
-    TGAImage specular_map;
-    specular_map.read_tga_file(
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/"
-        "african_head_spec.tga");
-
     vec3 light = {1, 0.5, 0.5};
     Camera camera;
+    TGAImage framebuffer(width, height, TGAImage::RGB);
 
     lookat(camera.eye, camera.center, camera.up);
     init_perspective(norm(camera.eye - camera.center));
     init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
     init_zbuffer(width, height);
 
-    PhongShader shader(light, model, albedo_map, normal_map, specular_map);
-    rasterize(model, camera, shader, framebuffer, width, height);
+    auto render = [&](std::string_view path, std::string_view name) {
+        render_model(light, camera, framebuffer, width, height, path, name);
+    };
+
+    render("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/",
+           "african_head_eye_inner");
+    render("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/",
+           "african_head_eye_outer");
+    render("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/",
+           "african_head");
+    render("F:/Programming/GitHub/tinyrenderer-practice/obj/", "floor");
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
     return 0;
