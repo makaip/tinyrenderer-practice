@@ -19,6 +19,13 @@ constexpr TGAColor blue    = {255, 128,  64, 255};
 constexpr TGAColor yellow  = {  0, 200, 255, 255};
 // clang-format on
 
+struct SceneObject {
+    Model model;
+    TGAImage diffuse;
+    TGAImage nm;
+    TGAImage spec;
+};
+
 struct ShadowShader : IShader {
     virtual vec4 vertex(const int nthvert, const Point3D& v) override {
         return Perspective * ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
@@ -170,51 +177,53 @@ int main(int argc, char** argv) {
     constexpr int height = 800;
     TGAImage framebuffer(width, height, TGAImage::RGB);
 
-    std::string model_name = "african_head";
-    std::string head_path =
-        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/";
-    Model head(head_path + model_name + ".obj");
-    TGAImage head_diffuse, head_nm, head_spec;
-    head_diffuse.read_tga_file(head_path + model_name + "_diffuse.tga");
-    head_nm.read_tga_file(head_path + model_name + "_nm_tangent.tga");
-    head_spec.read_tga_file(head_path + model_name + "_spec.tga");
-
-    std::string floor_path = "F:/Programming/GitHub/tinyrenderer-practice/obj/";
-    Model floor("F:/Programming/GitHub/tinyrenderer-practice/obj/floor.obj");
-    TGAImage floor_diffuse, floor_nm, floor_spec;
-    floor_diffuse.read_tga_file(floor_path + "floor_diffuse.tga");
-    floor_nm.read_tga_file(floor_path + "floor_nm_tangent.tga");
-    floor_spec.read_tga_file(floor_path + "floor_spec.tga");
+    std::vector<SceneObject> scene;
 
     Camera camera;
     vec3 light_dir = normalize(vec3{1, 0.5, 0.5});
     vec3 light_pos = light_dir * 3.0;
 
+    auto add_to_scene = [&scene](const std::string& path,
+                                 const std::string& name) {
+        SceneObject obj{Model(path + name + ".obj")};
+
+        obj.diffuse.read_tga_file(path + name + "_diffuse.tga");
+        obj.nm.read_tga_file(path + name + "_nm_tangent.tga");
+        obj.spec.read_tga_file(path + name + "_spec.tga");
+
+        scene.push_back(std::move(obj));
+    };
+
+    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/", "floor");
+    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/", "body");
+    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/", "head");
+    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/", "eyes");
+    
+    // shadow pass
     lookat(light_pos, camera.center, camera.up);
     init_perspective(norm(light_pos - camera.center));
     init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
     init_zbuffer(width, height);
 
     mat<4> M_light = Viewport * Perspective * ModelView;
-
     ShadowShader shadow_shader;
-    rasterize(floor, camera, shadow_shader, framebuffer, width, height);
-    rasterize(head, camera, shadow_shader, framebuffer, width, height);
+
+    for (auto& obj : scene) {
+        rasterize(obj.model, camera, shadow_shader, framebuffer, width, height);
+    }
 
     std::vector<double> shadow_map = zbuffer;
 
+    // render pass
     lookat(camera.eye, camera.center, camera.up);
     init_perspective(norm(camera.eye - camera.center));
     init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
     init_zbuffer(width, height);
 
-    PhongShader phong_head(light_dir, head, head_diffuse, head_nm, head_spec,
-                           shadow_map, M_light);
-    rasterize(head, camera, phong_head, framebuffer, width, height);
-
-    PhongShader phong_floor(light_dir, floor, floor_diffuse, floor_nm, floor_spec,
-                           shadow_map, M_light);
-    rasterize(floor, camera, phong_floor, framebuffer, width, height);
+    for (auto& obj : scene) {
+        PhongShader phong(light_dir, obj.model, obj.diffuse, obj.nm, obj.spec, shadow_map, M_light);
+        rasterize(obj.model, camera, phong, framebuffer, width, height);
+    }
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
     return 0;
