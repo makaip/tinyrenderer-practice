@@ -19,12 +19,26 @@ constexpr TGAColor blue    = {255, 128,  64, 255};
 constexpr TGAColor yellow  = {  0, 200, 255, 255};
 // clang-format on
 
+struct ShadowShader : IShader {
+    virtual vec4 vertex(const int nthvert, const Point3D& v) override {
+        return Perspective * ModelView * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
+    }
+
+    virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
+        return {false, TGAColor{0, 0, 0, 0}};
+    }
+};
+
 struct PhongShader : IShader {
     const Model& model;
 
     const TGAImage& albedo_map;
     const TGAImage& norm_map;
     const TGAImage& spec_map;
+
+    const std::vector<double>& shadow_map;
+    mat<4> M_light;
+    vec4 shadow_tri[3];
 
     vec3 light;
     vec3 tri[3];
@@ -33,8 +47,14 @@ struct PhongShader : IShader {
     vec2 uv[3];
 
     PhongShader(const vec3 light_dir, const Model& m, const TGAImage& a,
-                const TGAImage& n, const TGAImage& s)
-        : model(m), albedo_map(a), norm_map(n), spec_map(s) {
+                const TGAImage& n, const TGAImage& s,
+                const std::vector<double>& smap, const mat<4>& ml)
+        : model(m),
+          albedo_map(a),
+          norm_map(n),
+          spec_map(s),
+          shadow_map(smap),
+          M_light(ml) {
         light = normalize(
             (ModelView * vec4{light_dir.x, light_dir.y, light_dir.z, 0.})
                 .xyz());
@@ -48,12 +68,16 @@ struct PhongShader : IShader {
         norm[nthvert] = gl_norm.xyz();
         uv[nthvert] = v.uv;
 
+        shadow_tri[nthvert] = M_light * vec4{v.pos.x, v.pos.y, v.pos.z, 1.};
+
         return Perspective * gl_pos;
     }
 
     virtual std::pair<bool, TGAColor> fragment(const vec3 bar) const {
         TGAColor col = {255, 255, 255, 255};
         double ambient = 0.2;
+
+        // UV stuff
 
         vec3 e0 = tri[1] - tri[0];
         vec3 e1 = tri[2] - tri[0];
@@ -87,6 +111,7 @@ struct PhongShader : IShader {
 
         vec2 uv_coords = bar.x * uv[0] + bar.y * uv[1] + bar.z * uv[2];
 
+        // texture stuff
         TGAColor a_color =
             sample2D(albedo_map, vec2{uv_coords.x, 1.0 - uv_coords.y});
         TGAColor n_color =
@@ -101,17 +126,38 @@ struct PhongShader : IShader {
                            n_color[0] / 255.0 * 2.0 - 1.0};
         double map_spec = s_color[0] / 255.0;
 
+        // shadows
+        vec4 p_light = bar.x * shadow_tri[0] + bar.y * shadow_tri[1] +
+                       bar.z * shadow_tri[2];
+        p_light = p_light / p_light.w;
+
+        int shadow_x = p_light.x;
+        int shadow_y = p_light.y;
+        int idx =
+            shadow_x + shadow_y * 800;  // screen width: make variable later
+
+        double shadow_multiplier = 1.0;
+
+        if (shadow_x >= 0 && shadow_y >= 0 && shadow_x < 800 &&
+            shadow_y < 800) {
+            if (p_light.z < shadow_map[idx] - 0.01) {
+                shadow_multiplier = 0.3;
+            }
+        }
+
+        // actual shading
         vec3 normal = normalize(
             D.transpose() * vec4{map_normal.x, map_normal.y, map_normal.z, 0.});
-
         double normlight = dot(normal, light);
         vec3 reflection = normalize(normal * normlight * 2 - light);
         double diffuse = std::max(0.0, normlight);
         double specular = std::pow(std::max(reflection.z, 0.0), 35);
 
         for (int channel : {0, 1, 2}) {
-            double shaded_color = (ambient + 0.6 * diffuse) * albedo[channel] +
-                                  (specular * map_spec);
+            double shaded_color =
+                (ambient + shadow_multiplier * diffuse * 1.0) *
+                    albedo[channel] +
+                (shadow_multiplier * specular * map_spec * 1.5);
             col[channel] = 255.0 * std::min(1.0, shaded_color);
         }
 
@@ -119,50 +165,56 @@ struct PhongShader : IShader {
     }
 };
 
-void render_model(const vec3& light, Camera& camera,
-                  TGAImage& framebuffer, int width, int height,
-                  std::string_view path, std::string_view name) {
-    std::string base_path = std::string(path) + std::string(name);
-
-    Model model(base_path + ".obj");
-
-    TGAImage normal_map;
-    normal_map.read_tga_file(base_path + "_nm_tangent.tga");
-
-    TGAImage albedo_map;
-    albedo_map.read_tga_file(base_path + "_diffuse.tga");
-
-    TGAImage specular_map;
-    specular_map.read_tga_file(base_path + "_spec.tga");
-
-    PhongShader shader(light, model, albedo_map, normal_map, specular_map);
-    rasterize(model, camera, shader, framebuffer, width, height);
-}
-
 int main(int argc, char** argv) {
     constexpr int width = 800;
     constexpr int height = 800;
-
-    vec3 light = {1, 0.5, 0.5};
-    Camera camera;
     TGAImage framebuffer(width, height, TGAImage::RGB);
+
+    std::string model_name = "african_head";
+    std::string head_path =
+        "F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/";
+    Model head(head_path + model_name + ".obj");
+    TGAImage head_diffuse, head_nm, head_spec;
+    head_diffuse.read_tga_file(head_path + model_name + "_diffuse.tga");
+    head_nm.read_tga_file(head_path + model_name + "_nm_tangent.tga");
+    head_spec.read_tga_file(head_path + model_name + "_spec.tga");
+
+    std::string floor_path = "F:/Programming/GitHub/tinyrenderer-practice/obj/";
+    Model floor("F:/Programming/GitHub/tinyrenderer-practice/obj/floor.obj");
+    TGAImage floor_diffuse, floor_nm, floor_spec;
+    floor_diffuse.read_tga_file(floor_path + "floor_diffuse.tga");
+    floor_nm.read_tga_file(floor_path + "floor_nm_tangent.tga");
+    floor_spec.read_tga_file(floor_path + "floor_spec.tga");
+
+    Camera camera;
+    vec3 light_dir = normalize(vec3{1, 0.5, 0.5});
+    vec3 light_pos = light_dir * 3.0;
+
+    lookat(light_pos, camera.center, camera.up);
+    init_perspective(norm(light_pos - camera.center));
+    init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
+    init_zbuffer(width, height);
+
+    mat<4> M_light = Viewport * Perspective * ModelView;
+
+    ShadowShader shadow_shader;
+    rasterize(floor, camera, shadow_shader, framebuffer, width, height);
+    rasterize(head, camera, shadow_shader, framebuffer, width, height);
+
+    std::vector<double> shadow_map = zbuffer;
 
     lookat(camera.eye, camera.center, camera.up);
     init_perspective(norm(camera.eye - camera.center));
     init_viewport(width / 16, height / 16, width * 7 / 8, height * 7 / 8);
     init_zbuffer(width, height);
 
-    auto render = [&](std::string_view path, std::string_view name) {
-        render_model(light, camera, framebuffer, width, height, path, name);
-    };
+    PhongShader phong_head(light_dir, head, head_diffuse, head_nm, head_spec,
+                           shadow_map, M_light);
+    rasterize(head, camera, phong_head, framebuffer, width, height);
 
-    render("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/",
-           "african_head_eye_inner");
-    render("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/",
-           "african_head_eye_outer");
-    render("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/",
-           "african_head");
-    render("F:/Programming/GitHub/tinyrenderer-practice/obj/", "floor");
+    PhongShader phong_floor(light_dir, floor, floor_diffuse, floor_nm, floor_spec,
+                           shadow_map, M_light);
+    rasterize(floor, camera, phong_floor, framebuffer, width, height);
 
     framebuffer.write_tga_file("./framebuffer.tga", true, false);
     return 0;
