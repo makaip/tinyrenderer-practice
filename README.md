@@ -1,3 +1,7 @@
 # tinyrenderer practice
 
-following <https://haqr.eu/tinyrenderer/>
+implementing a basic rasterizer. following <https://haqr.eu/tinyrenderer/>
+
+## final result
+
+![output](output.png)

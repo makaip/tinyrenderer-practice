@@ -195,10 +195,9 @@ int main(int argc, char** argv) {
     };
 
     add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/", "floor");
-    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/", "body");
-    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/", "head");
-    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/boggie/", "eyes");
-    
+    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/", "african_head");
+    add_to_scene("F:/Programming/GitHub/tinyrenderer-practice/obj/african_head/", "african_head_eye_inner");
+
     // shadow pass
     lookat(light_pos, camera.center, camera.up);
     init_perspective(norm(light_pos - camera.center));
